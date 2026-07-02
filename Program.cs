@@ -1,29 +1,27 @@
-﻿using System;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Threading.Tasks.Dataflow; // Essential for later!
+﻿using System.Threading.Tasks.Dataflow; 
 using System.Text.RegularExpressions;
-using System.Collections.Generic;
 using System.Collections.Concurrent;
 
-namespace LinkChecker
+namespace LinkCrawler
 {
     class Program
     {
-        // 1. Share a single HttpClient instance to prevent socket exhaustion
+        // Share a single HttpClient instance to prevent socket exhaustion
         private static readonly HttpClient _httpClient = new HttpClient(new HttpClientHandler
         {
             AllowAutoRedirect = true,
             MaxAutomaticRedirections = 5
         })
         {
-            Timeout = TimeSpan.FromSeconds(10) // Don't let slow sites hang our threads
+            Timeout = TimeSpan.FromSeconds(10) 
         };
 
-        // 2. Limit maximum concurrent requests to 10 so we don't overwhelm the server
+        //  Limit maximum concurrent requests to 10 so we don't overwhelm the server         
+        // SemaphoreSlim( initialCount, maxCount)
+
         private static readonly SemaphoreSlim _networkThrottle = new SemaphoreSlim(10, 10);
 
+        // it is a storage for visited url
         private static readonly ConcurrentDictionary<Uri, byte> _visitedUrls = new ConcurrentDictionary<Uri, byte>();
 
         // take http response and convert it into string and return the string
@@ -92,23 +90,17 @@ namespace LinkChecker
 
                 if ((int)response.StatusCode == 404)
                 {
-                    Console.ForegroundColor = ConsoleColor.Red;
                     Console.WriteLine($"[BROKEN 404] - {url}");
-                    Console.ResetColor();
                 }
                 else
                 {
-                    Console.ForegroundColor = ConsoleColor.Green;
                     Console.WriteLine($"[OK] {(int)response.StatusCode} - {url}");
-                    Console.ResetColor();
                 }
 
             }
             catch (Exception)
             {
-                Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine($"[INVALID] Failed to reach - {url}");
-                Console.ResetColor();
             }
             finally
             {
@@ -119,18 +111,19 @@ namespace LinkChecker
 
         static async Task Main(string[] args)
         {
-            Console.WriteLine("--- High-Performance Link Checker Initialized ---");
+            Console.WriteLine("Link Crawler Initialized\n");
 
-            // Next step will go here
 
             var seedUrl = new Uri("https://github.com/");
+
+            // this doesn't have any purpose in this code as only one url is visited
             _visitedUrls.TryAdd(seedUrl, 0);
 
             var crawlBlock = new TransformBlock<Uri, string>(
                 async url => await DownloadHtmlAsync(url),
                 new ExecutionDataflowBlockOptions
                 {
-                    MaxDegreeOfParallelism = 10
+                    MaxDegreeOfParallelism = 5
                 }
                 );
 
@@ -157,7 +150,6 @@ namespace LinkChecker
             await crawlBlock.SendAsync(seedUrl);
             crawlBlock.Complete();
 
-            //await Task.Delay(5000);
             await validationBlock.Completion;
 
             Console.WriteLine("\nCrawl complete or timed out. Press any key to exit.");
