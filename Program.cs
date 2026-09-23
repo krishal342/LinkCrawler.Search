@@ -22,6 +22,10 @@ builder.Services.AddHttpClient<IPageFetcher, HttpPageFetcher>(client =>
         config["CrawlSettings:UserAgent"] ?? "MyCrawlerBot/1");
 });
 
+builder.Services.AddSingleton<IHtmlParser, AngleSharpHtmlParser>();
+
+builder.Services.AddScoped<ICrawlerService, CrawlerService>();
+
 var host = builder.Build();
 
 Console.WriteLine("Web Crawler Search - starting up...");
@@ -29,23 +33,14 @@ Console.WriteLine("Web Crawler Search - starting up...");
 // ---- TEMPORARY TEST CODE (remove after verifying) ----
 using (var scope = host.Services.CreateScope())
 {
-    var fetcher = scope.ServiceProvider.GetRequiredService<IPageFetcher>();
+    var crawler = scope.ServiceProvider.GetRequiredService<ICrawlerService>();
 
-    var testUrl = "https://example.com";
-    Console.WriteLine($"Fetching: {testUrl}");
+    var testUrl = "https://books.toscrape.com"; 
+    //var testUrl = "https://example.com";
+    Console.WriteLine($"Starting crawl: {testUrl}");
+    Console.WriteLine();
 
-    var result = await fetcher.FetchAsync(testUrl);
-
-    if (result.Success)
-    {
-        Console.WriteLine($"Success! Status: {result.StatusCode}");
-        Console.WriteLine($"HTML length: {result.Html?.Length} characters");
-        Console.WriteLine(result.Html ?? "Nothing");
-    }
-    else
-    {
-        Console.WriteLine($"Failed: {result.ErrorMessage} (Status: {result.StatusCode})");
-    }
+    await crawler.CrawlAsync(testUrl, maxDepth: 2, maxPages: 10);
 }
 // ---- END TEMPORARY TEST CODE ----
 
